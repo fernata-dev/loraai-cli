@@ -1,0 +1,332 @@
+/* loraai TUI stylesheet.
+   Colour tokens come from the registered themes in app.py, so the same rules
+   work in dark and light without duplication. */
+
+Screen {
+    background: $background;
+    color: $foreground;
+    layers: base overlay;
+}
+
+/* ---------------------------------------------------------------- header */
+
+#brandbar {
+    dock: top;
+    height: 3;
+    background: $panel;
+    border-bottom: solid $brand;
+    padding: 0 2;
+    layout: horizontal;
+}
+
+#brandmark {
+    width: auto;
+    content-align: left middle;
+    height: 100%;
+    text-style: bold;
+    color: $brand;
+}
+
+#brandtag {
+    width: 1fr;
+    content-align: left middle;
+    height: 100%;
+    color: $text-muted;
+    padding: 0 2;
+}
+
+#sourcechip {
+    width: auto;
+    content-align: right middle;
+    height: 100%;
+    color: $accent;
+}
+
+/* --------------------------------------------------------------- sidebar */
+
+#body {
+    layout: horizontal;
+    height: 1fr;
+}
+
+#sidebar {
+    width: 24;
+    background: $panel;
+    border-right: solid $surface-lighten-2;
+    padding: 1 0;
+}
+
+#sidebar ListItem {
+    padding: 0 2;
+    height: 1;
+    background: transparent;
+    color: $text-muted;
+}
+
+#sidebar ListItem.--highlight {
+    background: $brand 40%;
+    color: $foreground;
+    text-style: bold;
+    border-left: thick $brand;
+    padding: 0 2 0 1;
+}
+
+#sidebar ListItem:hover {
+    background: $brand 15%;
+}
+
+#navtitle {
+    padding: 0 2;
+    height: 2;
+    color: $text-muted;
+    text-style: bold;
+}
+
+/* --------------------------------------------------------------- content */
+
+#content {
+    width: 1fr;
+    padding: 1 2;
+    overflow-y: auto;
+}
+
+.pane {
+    height: auto;
+}
+
+.pane-title {
+    height: 2;
+    color: $brand;
+    text-style: bold;
+    border-bottom: solid $surface-lighten-2;
+    margin-bottom: 1;
+}
+
+.hint {
+    color: $text-muted;
+    margin-bottom: 1;
+    height: auto;
+}
+
+/* ------------------------------------------------------------ stat cards */
+
+#statrow, .statrow {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 1;
+}
+
+StatCard {
+    width: 1fr;
+    height: 5;
+    border: round $surface-lighten-2;
+    padding: 0 1;
+    margin-right: 1;
+    background: $panel;
+}
+
+StatCard.accent { border: round $accent; }
+StatCard.good   { border: round $success; }
+StatCard.warn   { border: round $warning; }
+StatCard.bad    { border: round $error; }
+
+StatCard .stat-key {
+    color: $text-muted;
+    height: 1;
+}
+
+StatCard .stat-value {
+    text-style: bold;
+    height: 1;
+}
+
+/* --------------------------------------------------------------- verdict */
+
+VerdictPanel {
+    height: auto;
+    border: round $surface-lighten-2;
+    background: $panel;
+    padding: 1 2;
+    margin-bottom: 1;
+}
+
+VerdictPanel.good { border: round $success; }
+VerdictPanel.warn { border: round $warning; }
+VerdictPanel.bad  { border: round $error; }
+
+#verdict-line {
+    height: 1;
+    margin-bottom: 1;
+}
+
+#verdict-meter {
+    height: 1;
+    margin-bottom: 1;
+}
+
+#verdict-signals {
+    height: auto;
+}
+
+/* ------------------------------------------------------------- controls */
+
+.controls {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 1;
+    align-vertical: middle;
+}
+
+.controls Button {
+    margin-right: 1;
+    min-width: 14;
+}
+
+.controls Select {
+    width: 26;
+    margin-right: 1;
+}
+
+.controls Input {
+    width: 1fr;
+    margin-right: 1;
+}
+
+.field-label {
+    width: auto;
+    padding: 1 1 0 0;
+    color: $text-muted;
+}
+
+Button {
+    border: none;
+    height: 3;
+}
+
+Button.-primary {
+    background: $brand;
+    color: $background;
+    text-style: bold;
+}
+
+Button.-primary:hover {
+    background: $brand-lighten-1;
+}
+
+/* ---------------------------------------------------------------- editor */
+
+TextArea {
+    height: 18;
+    border: round $surface-lighten-2;
+    margin-bottom: 1;
+}
+
+TextArea:focus {
+    border: round $brand;
+}
+
+.output-area {
+    height: 16;
+}
+
+/* ---------------------------------------------------------------- tables */
+
+DataTable {
+    height: auto;
+    max-height: 22;
+    border: round $surface-lighten-2;
+    margin-bottom: 1;
+}
+
+DataTable > .datatable--header {
+    background: $panel;
+    color: $text-muted;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $brand 40%;
+}
+
+/* ---------------------------------------------------------------- panels */
+
+.card {
+    height: auto;
+    border: round $surface-lighten-2;
+    background: $panel;
+    padding: 1 2;
+    margin-bottom: 1;
+}
+
+.card.danger { border: round $error; }
+.card.good   { border: round $success; }
+.card.info   { border: round $accent; }
+
+.card-title {
+    text-style: bold;
+    color: $brand;
+    height: 1;
+}
+
+.scrolltext {
+    height: auto;
+    max-height: 20;
+    overflow-y: auto;
+}
+
+/* --------------------------------------------------------------- modals */
+
+HelpScreen, AboutScreen, ConfirmScreen {
+    align: center middle;
+}
+
+#modal {
+    width: 84;
+    max-width: 96%;
+    height: auto;
+    max-height: 90%;
+    border: round $brand;
+    background: $panel;
+    padding: 1 2;
+}
+
+#modal-title {
+    text-style: bold;
+    color: $brand;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#modal-body {
+    height: auto;
+    max-height: 30;
+    overflow-y: auto;
+}
+
+#modal-actions {
+    layout: horizontal;
+    height: auto;
+    margin-top: 1;
+    align-horizontal: right;
+}
+
+#modal-actions Button {
+    margin-left: 1;
+}
+
+/* ---------------------------------------------------------------- misc */
+
+LoadingIndicator {
+    height: 3;
+    background: transparent;
+}
+
+.empty {
+    color: $text-muted;
+    padding: 2 0;
+    height: auto;
+}
+
+Footer {
+    background: $panel;
+}
