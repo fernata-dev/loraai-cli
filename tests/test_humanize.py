@@ -182,3 +182,121 @@ class TestProviders:
 
     def test_model_override(self):
         assert get_provider("openai", "gpt-9-turbo").config.model == "gpt-9-turbo"
+
+
+class TestStructuralRulesRunBeforeVocabulary:
+    """Rule order is load-bearing, and getting it wrong is silent.
+
+    A structural rule removes a whole clause; a vocabulary rule rewrites one
+    word inside it. With vocabulary running first, "underscoring" became
+    "showing" before the participial rule - whose pattern lists "underscoring"
+    and not "showing" - could match, so the trailing clause survived every
+    intensity while both rules looked present and correct.
+    """
+
+    def test_structure_precedes_vocabulary_in_the_pool(self):
+        order = [r.rule_id for r in rules_for("en", "natural", 3)]
+        first_structure = min(
+            (i for i, rid in enumerate(order) if rid.startswith("hum.structure.")),
+            default=None)
+        first_vocab = min(
+            (i for i, rid in enumerate(order) if rid.startswith("hum.vocab.")),
+            default=None)
+        assert first_structure is not None and first_vocab is not None
+        assert first_structure < first_vocab
+
+    @pytest.mark.parametrize("intensity", [2, 3])
+    def test_participial_tail_is_cut_not_merely_reworded(self, intensity):
+        text = ("The key role of data cannot be understated, underscoring the "
+                "importance of holistic strategies.")
+        out = humanize(text, intensity=intensity).result
+        assert "underscoring" not in out
+        assert "showing the importance" not in out, \
+            "the clause was reworded instead of removed"
+        assert out.rstrip().endswith(".")
+
+
+class TestConstructionsThatHadNoRule:
+    @pytest.mark.parametrize("text,gone,kept", [
+        ("It is not merely about technology, but about people.",
+         "not merely", "about people"),
+        ("The result is not only faster, but also cheaper to run.",
+         "not only", "cheaper to run"),
+        ("It's not about the money, it's about the principle.",
+         "not about the money", "principle"),
+    ])
+    def test_negative_parallelism_keeps_the_second_half(self, text, gone, kept):
+        out = humanize(text, intensity=2).result
+        assert gone not in out.lower()
+        assert kept in out
+
+    def test_consensus_attributed_to_nobody_is_removed(self):
+        out = humanize("It is widely believed that rates will fall.",
+                       intensity=2).result
+        assert "widely believed" not in out
+        assert "rates will fall" in out.lower()
+
+    @pytest.mark.parametrize("phrase,expected", [
+        ("paving the way for a better future", "leading to"),
+        ("this will showcase the results", "show"),
+        ("we must streamline operations", "simplify"),
+        ("a genuine paradigm shift", "shift"),
+        ("unlock tremendous value", "release"),
+        ("navigate many challenges", "handle"),
+    ])
+    def test_added_vocabulary_fires(self, phrase, expected):
+        out = humanize(phrase, intensity=2).result
+        assert expected in out.lower(), out
+
+    def test_in_todays_landscape_goes_even_after_an_earlier_rewrite(self):
+        """"rapidly evolving" -> "changing" must not shield the opener.
+
+        Both rules live in the same table, so the first one to fire changes the
+        text the second one has to match against.
+        """
+        out = humanize(
+            "In today's rapidly evolving digital landscape, AI is useful.",
+            intensity=2).result
+        assert "today" not in out.lower()
+        assert "AI is useful" in out
+
+
+class TestRewritesStayGrammatical:
+    """A rewrite that mangles a sentence is more obviously machine-handled.
+
+    Every replacement must drop straight into the slot the original filled. A
+    separable phrasal verb cannot: "harness" -> "put to work" would give "put
+    to work these capabilities".
+    """
+
+    BROKEN = (
+        (r"\ba\s+(?:[aeiou])\w+", "'a' before a vowel"),
+        (r"\ban\s+(?![aeiouAEIOU]|hour|honest|honou?r)\w", "'an' before a consonant"),
+        (r"\b(\w+)\s+\1\b", "doubled word"),
+        (r"\s+[,.;:!?]", "space before punctuation"),
+        (r"[,;:]{2,}", "doubled punctuation"),
+        (r"\s{3,}", "run of whitespace"),
+        (r"\b(?:at|to|of|for|with)\s+(?:into|onto|at)\b", "stranded preposition"),
+    )
+
+    @pytest.mark.parametrize("style", STYLES)
+    @pytest.mark.parametrize("intensity", [1, 2, 3])
+    def test_no_broken_grammar_in_output(self, style, intensity):
+        import re
+        out = humanize(AI_STYLE, style=style, intensity=intensity).result
+        for pattern, complaint in self.BROKEN:
+            match = re.search(pattern, out, flags=re.IGNORECASE)
+            assert not match, (
+                f"{complaint}: {match.group(0)!r} at {style}/{intensity}\n"
+                f"...{out[max(0, match.start() - 60):match.end() + 60]}...")
+
+    def test_every_replacement_is_a_single_slot_substitute(self):
+        """No alternative may be a separable phrasal verb."""
+        for rule in rules_for("en", "natural", 3):
+            if not isinstance(rule.replacement, str):
+                continue
+            parts = rule.replacement.split()
+            if len(parts) >= 3 and parts[1] in {"to", "in", "on", "out", "up", "off"}:
+                raise AssertionError(
+                    f"{rule.rule_id} replaces with {rule.replacement!r}, which "
+                    "needs its object in the middle")

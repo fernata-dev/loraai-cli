@@ -182,6 +182,45 @@ _VOCAB_EN: Tuple[Tuple[str, str], ...] = (
     (r"\bin the realm of\b", "in"),
     (r"\brich tapestry of\b", "mix of"),
     (r"\btapestry of\b", "mix of"),
+    # Each replacement has to drop straight into the slot the original filled.
+    # A separable phrasal verb such as "put to work" needs its object in the
+    # middle and would produce "put to work these capabilities", so the
+    # alternatives here are all single verbs or inseparable phrases.
+    (r"\brapidly evolving\b", "changing"),
+    (r"\brapidly changing\b", "changing"),
+    # Tolerant of an adjective or two in the middle, because an earlier rule
+    # in this table may already have rewritten one ("rapidly evolving" ->
+    # "changing") and a fixed phrase would then no longer match.
+    (r"\bin today'?s\s+(?:[\w-]+\s+){0,2}(?:landscape|era|age|climate|environment),?\s*", ""),
+    (r"\bpav(?:e|es|ing) the way for\b", "leading to"),
+    (r"\bpaved the way for\b", "led to"),
+    (r"\bshowcase\b", "show"),
+    (r"\bshowcases\b", "shows"),
+    (r"\bshowcasing\b", "showing"),
+    (r"\bstreamline\b", "simplify"),
+    (r"\bstreamlines\b", "simplifies"),
+    (r"\bstreamlining\b", "simplifying"),
+    (r"\bparadigm shift\b", "shift"),
+    (r"\bparadigm\b", "model"),
+    (r"\bunprecedented\b", "new"),
+    (r"\btremendous\b", "huge"),
+    (r"\bunlock\b", "release"),
+    (r"\bunlocks\b", "releases"),
+    (r"\bunlocking\b", "releasing"),
+    (r"\brealms\b", "areas"),
+    (r"\brealm\b", "area"),
+    (r"\bnavigate\b", "handle"),
+    (r"\bnavigates\b", "handles"),
+    (r"\bnavigating\b", "handling"),
+    (r"\bspearhead(?:s|ing)?\b", "lead"),
+    (r"\bbespoke\b", "custom"),
+    (r"\bsynerg(?:y|ies)\b", "overlap"),
+    (r"\bactionable insights?\b", "advice"),
+    (r"\bkey takeaways?\b", "main point"),
+    (r"\bdeep dive\b", "close look"),
+    (r"\bmoving forward,?\s*", ""),
+    (r"\bthat being said,?\s*", "still, "),
+    (r"\bcannot be (?:overstated|understated)\b", "matters"),
 )
 
 VOCABULARY_EN: List[Substitution] = [
@@ -335,6 +374,35 @@ STRUCTURE: List[Substitution] = [
         description="Remove vague appeal to authority (claim is kept)",
     ),
     _sub(
+        "hum.structure.negative_parallelism",
+        "structure",
+        r"\b(?P<lead>(?:is|are|was|were|be|been)\s+)?"
+        r"not\s+(?:just|only|merely|simply)\s+"
+        r"(?P<first>[^.!?;]{2,70}?)\s*,?\s+but(?:\s+also)?\s+"
+        r"(?P<second>[^.!?;]{2,90})",
+        lambda m: f"{m.group('lead') or ''}{m.group('second').strip()}",
+        min_intensity=2,
+        description="Keep the second half of \"not just X, but Y\"",
+    ),
+    _sub(
+        "hum.structure.negative_parallelism_its",
+        "structure",
+        r"\bit'?s\s+not\s+(?:about\s+)?(?P<first>[^.!?;]{2,60}?)\s*,\s*"
+        r"it'?s\s+(?P<second>[^.!?;]{2,80})",
+        lambda m: f"it's {m.group('second').strip()}",
+        min_intensity=2,
+        description="Collapse \"it's not X, it's Y\" to the claim itself",
+    ),
+    _sub(
+        "hum.structure.impersonal_authority",
+        "attribution",
+        r"\bit\s+(?:is|was)\s+(?:widely|generally|commonly|often)\s+"
+        r"(?:believed|accepted|known|understood|regarded|thought)\s+that\s+",
+        "",
+        min_intensity=2,
+        description="Remove consensus attributed to nobody (claim is kept)",
+    ),
+    _sub(
         "hum.structure.em_dash",
         "punctuation",
         r"\s+[—–]\s+",
@@ -473,13 +541,18 @@ ARABIC: List[Substitution] = [
 
 def rules_for(language: str, style: str, intensity: int) -> List[Substitution]:
     """Select the active rule set for a language, style and intensity."""
+    # STRUCTURE comes before VOCABULARY_EN deliberately. A structural rule
+    # removes a whole clause; a vocabulary rule rewrites one word inside it.
+    # With vocabulary first, "underscoring" became "showing" before the
+    # participial rule - whose pattern lists "underscoring" - could match, so
+    # the trailing clause survived every intensity.
     pool: List[Substitution] = list(ASSISTANT_VOICE)
     if language == "ar":
         pool += ARABIC
     elif language == "mixed":
-        pool += ARABIC + VOCABULARY_EN + TRANSITIONS + STRUCTURE + CONTRACTIONS
+        pool += ARABIC + STRUCTURE + VOCABULARY_EN + TRANSITIONS + CONTRACTIONS
     else:
-        pool += VOCABULARY_EN + TRANSITIONS + STRUCTURE + CONTRACTIONS
+        pool += STRUCTURE + VOCABULARY_EN + TRANSITIONS + CONTRACTIONS
 
     return [
         rule

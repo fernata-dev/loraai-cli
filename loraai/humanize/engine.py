@@ -184,6 +184,12 @@ def _repair(text: str) -> str:
     result = re.sub(r"(?<=\S)[ \t]{2,}", " ", result)
     result = re.sub(r"[ \t]+(?=\n)", "", result)
 
+    # Deleting a sentence opener at the start of a paragraph leaves the space
+    # that followed it, and the rule above cannot see it: there is a newline
+    # in front, not a word, so it is neither a separator nor trailing. Four or
+    # more spaces are left alone, because that is an indented code block.
+    result = re.sub(r"(\n\n)[ \t]{1,3}(?=\S)", r"\1", result)
+
     # Cap blank-line runs at one.
     result = re.sub(r"\n{3,}", "\n\n", result)
 
