@@ -24,6 +24,7 @@ from ..unicode_data.invisible import (
     ARABIC_JOINERS,
     classify_codepoint,
     in_joiner_context,
+    in_variation_base_context,
 )
 from ..unicode_data.scripts import is_mixed_script_word, script_histogram
 from .payload import decode_payloads
@@ -80,6 +81,27 @@ def _joiner_is_legitimate(text: str, index: int) -> bool:
     if not before or not after:
         return False
     return in_joiner_context(ord(before)) and in_joiner_context(ord(after))
+
+
+def _variation_selector_is_legitimate(text: str, index: int) -> bool:
+    """Decide whether the variation selector at *index* is selecting a glyph.
+
+    It is legitimate only directly after a character that has variants to pick
+    from. The spec for these codepoints has always been marked
+    context_sensitive, but nothing evaluated the context, so VS15 and VS16 were
+    trusted wherever they appeared - including after a full stop, where the
+    only thing they can be doing is carrying a byte.
+    """
+    if index == 0:
+        return False
+    base = text[index - 1]
+    # A selector after another selector extends a sequence that was itself
+    # either legitimate or not; walk back to the real base character.
+    scan_at = index - 1
+    while scan_at > 0 and 0xFE00 <= ord(text[scan_at]) <= 0xFE0F:
+        scan_at -= 1
+        base = text[scan_at]
+    return in_variation_base_context(ord(base))
 
 
 def _analyse_normalization(text: str) -> Dict[str, object]:
@@ -167,6 +189,21 @@ def scan(text: str, *, decode_hidden: bool = True) -> UnicodeReport:
         severity = spec.severity
         note = spec.note
         action = spec.safe_action
+
+        # Variation selectors: a byte channel unless they follow a character
+        # that actually has glyph variants.
+        if 0xFE00 <= cp <= 0xFE0F:
+            if _variation_selector_is_legitimate(text, position):
+                severity = Severity.INFO
+                action = "keep"
+                note = ("Variation selector directly after a character that "
+                        "has glyph variants, so it is selecting one.")
+            else:
+                severity = Severity.HIGH
+                action = "remove"
+                note = ("Variation selector after a character with no glyph "
+                        "variants to select. Nothing to do here but carry a "
+                        "byte - this is a steganographic channel.")
 
         # Context-sensitive joiners: decide per occurrence.
         if cp in ARABIC_JOINERS:

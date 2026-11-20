@@ -77,7 +77,11 @@ SAFE = CleanProfile(
     ),
     remove_classes=_ALWAYS_REMOVE,
     replace_classes=_ALWAYS_REPLACE,
-    strip_orphan_joiners=False,
+    # An orphan joiner is one the tool has already judged to be doing no
+    # typographic work, which puts it squarely under this profile's own
+    # contract. Joiners that a script needs are kept, because legitimacy is
+    # decided per occurrence from the neighbouring characters.
+    strip_orphan_joiners=True,
 )
 
 STANDARD = CleanProfile(

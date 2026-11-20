@@ -144,8 +144,38 @@ class TestControlAndExotic:
         assert report.findings[0].severity is Severity.CRITICAL
 
     def test_emoji_variation_selector_is_benign(self):
-        report = scan("❤️")
-        assert all(f.severity is Severity.LOW for f in report.findings)
+        """A selector doing its job is not worth raising an alarm about."""
+        report = scan("\u2764\ufe0f")
+        assert all(f.severity.rank <= Severity.LOW.rank
+                   for f in report.findings)
+        assert all(f.recommended_action == "keep" for f in report.findings)
+
+    def test_cjk_variation_selector_is_benign(self):
+        """VS1-VS14 select ideograph variants; only VS15/16 used to be trusted."""
+        report = scan("\u8aa4\ufe00")
+        selectors = [f for f in report.findings if 0xFE00 <= f.codepoint <= 0xFE0F]
+        assert selectors
+        assert all(f.recommended_action == "keep" for f in selectors)
+
+    @pytest.mark.parametrize("text,where", [
+        ("a\ufe0f", "after a letter"),
+        ("end.\ufe0f", "after a full stop"),
+        ("7\ufe0f", "after a digit"),
+        (" \ufe0f", "after a space"),
+        ("\ufe0f", "at the start of the text"),
+    ])
+    def test_orphan_variation_selector_is_flagged(self, text, where):
+        """There is no glyph to select here, so the selector carries a byte.
+
+        VS15 and VS16 were previously trusted wherever they appeared, which
+        let the highest-capacity hidden channel in Unicode through every
+        cleaning profile, aggressive included.
+        """
+        report = scan(text)
+        selectors = [f for f in report.findings if 0xFE00 <= f.codepoint <= 0xFE0F]
+        assert selectors, f"no finding for a selector {where}"
+        assert all(f.recommended_action == "remove" for f in selectors)
+        assert all(f.severity.rank >= Severity.HIGH.rank for f in selectors)
 
 
 class TestReportShape:

@@ -23,7 +23,8 @@ from ..unicode_data.confusables import confusable_target, is_cross_script_confus
 from ..unicode_data.invisible import ARABIC_JOINERS, classify_codepoint
 from ..unicode_data.scripts import is_mixed_script_word
 from ..analysis.tokenizer import word_spans
-from ..analysis.unicode_forensics import _joiner_is_legitimate
+from ..analysis.unicode_forensics import (_joiner_is_legitimate,
+                                          _variation_selector_is_legitimate)
 from .rules import DEFAULT_PROFILE, TYPOGRAPHY_MAP, CleanProfile, get_profile
 
 
@@ -32,9 +33,18 @@ def _semantic_signature(text: str) -> str:
 
     Letters, digits and combining marks, in order. Whitespace and punctuation
     are excluded because whitespace normalisation legitimately changes them.
+
+    Variation selectors are category Mn, so they would be counted here as if
+    they were combining accents. They are not: an accent changes what a reader
+    sees and a variation selector does not. Counting them made removing one
+    look like a loss of content, which is why they used to survive every
+    profile even when they were plainly carrying bytes.
     """
     return "".join(
-        ch for ch in text if unicodedata.category(ch)[0] in ("L", "N", "M")
+        ch for ch in text
+        if unicodedata.category(ch)[0] in ("L", "N", "M")
+        and not (0xFE00 <= ord(ch) <= 0xFE0F
+                 or 0xE0100 <= ord(ch) <= 0xE01EF)
     )
 
 
@@ -183,10 +193,21 @@ def clean(
             out.append(ch)
             continue
 
-        # --- emoji selectors survive every profile -----------------------
-        if char_class == "variation-selector" and cp in (0xFE0E, 0xFE0F):
-            preserved[f"U+{cp:04X}"] += 1
-            out.append(ch)
+        # --- variation selectors: keep the ones selecting a glyph --------
+        # VS15 and VS16 used to be preserved unconditionally, which let a
+        # selector sitting after a full stop through every profile including
+        # aggressive. What matters is the character in front of it.
+        if char_class == "variation-selector":
+            if _variation_selector_is_legitimate(text, position):
+                preserved[f"U+{cp:04X}"] += 1
+                out.append(ch)
+                continue
+            removed[f"U+{cp:04X}"] += 1
+            changes.append(
+                CleanChange("removed", cp, position, "",
+                            "variation selector after a character with no "
+                            "glyph variants to select")
+            )
             continue
 
         if char_class in policy.remove_classes:

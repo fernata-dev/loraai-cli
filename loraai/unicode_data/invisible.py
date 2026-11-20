@@ -264,6 +264,30 @@ PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD)
 #: Joiners that Arabic, Persian and Indic scripts genuinely need.
 ARABIC_JOINERS = frozenset({0x200C, 0x200D})
 
+#: Characters that genuinely have glyph variants to select. Everything outside
+#: this set leaves a following variation selector with no work to do.
+VARIATION_BASE_RANGES = (
+    (0x00A9, 0x00A9),    # (c)
+    (0x00AE, 0x00AE),    # (R)
+    (0x203C, 0x2049),    # !! .. ?!
+    (0x2100, 0x214F),    # Letterlike symbols (TM, (tm))
+    (0x2190, 0x21FF),    # Arrows
+    (0x2300, 0x23FF),    # Misc technical (watch, hourglass, keyboard)
+    (0x24B6, 0x24EA),    # Enclosed alphanumerics
+    (0x25A0, 0x25FF),    # Geometric shapes
+    (0x2600, 0x27BF),    # Misc symbols and dingbats
+    (0x2934, 0x2935),    # Arrows supplement
+    (0x2B00, 0x2BFF),    # Misc symbols and arrows
+    (0x3030, 0x3030),    # Wavy dash
+    (0x303D, 0x303D),    # Part alternation mark
+    (0x3297, 0x3299),    # Circled ideographs
+    (0x1F000, 0x1FAFF),  # Emoji proper
+    (0x3400, 0x4DBF),    # CJK Extension A
+    (0x4E00, 0x9FFF),    # CJK Unified Ideographs
+    (0xF900, 0xFAFF),    # CJK Compatibility Ideographs
+    (0x20000, 0x2FA1F),  # CJK Extensions B-F
+)
+
 #: Scripts in whose company ZWNJ/ZWJ are legitimate rather than suspicious.
 JOINER_CONTEXT_RANGES = (
     (0x0600, 0x06FF),  # Arabic
@@ -305,6 +329,18 @@ def _in_ranges(cp: int, ranges) -> bool:
 def in_joiner_context(cp: int) -> bool:
     """True when *cp* belongs to a script where ZWNJ/ZWJ carry meaning."""
     return _in_ranges(cp, JOINER_CONTEXT_RANGES)
+
+
+def in_variation_base_context(cp: int) -> bool:
+    """True when a variation selector after *cp* is doing typographic work.
+
+    A variation selector picks between glyph forms of the character it
+    follows. That only means something after an emoji or a CJK ideograph. After
+    a Latin letter, a digit, a space or a full stop there is no variant to
+    select, so the selector is carrying a byte instead - a full byte each,
+    which makes it the highest-capacity hidden channel in Unicode.
+    """
+    return _in_ranges(cp, VARIATION_BASE_RANGES)
 
 
 def classify_codepoint(cp: int) -> Optional[CharSpec]:

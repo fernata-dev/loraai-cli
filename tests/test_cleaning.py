@@ -183,3 +183,74 @@ class TestOutput:
         result = clean("a   b\n\n\n\n\nc   ", "standard")
         assert "   " not in result.cleaned
         assert "\n\n\n" not in result.cleaned
+
+
+class TestHiddenChannelsAreActuallyClosed:
+    """Two channels used to survive cleaning, including the aggressive profile.
+
+    Orphan zero-width joiners were kept by the safe profile, and VS15/VS16 were
+    preserved unconditionally by every profile on the assumption that they are
+    always emoji presentation selectors. Both are high-capacity hidden
+    channels: a variation selector carries a full byte each. The fix judges
+    both per occurrence, from the character in front of them, so the channels
+    close without disturbing the scripts that need these characters.
+    """
+
+    @staticmethod
+    def _survivors(text: str, profile: str) -> list[str]:
+        from loraai.analysis.unicode_forensics import scan
+        cleaned = clean(text, profile).cleaned
+        return [f"U+{f.codepoint:04X}" for f in scan(cleaned).findings
+                if f.recommended_action == "remove"]
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_orphan_joiner_is_removed_by_every_profile(self, profile):
+        assert self._survivors("landscape,‌Next", profile) == []
+        assert clean("landscape,‌Next", profile).cleaned == "landscape,Next"
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_orphan_variation_selector_is_removed_by_every_profile(self, profile):
+        assert self._survivors("end.️", profile) == []
+        assert clean("end.️", profile).cleaned == "end."
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_variation_selector_byte_channel_is_destroyed(self, profile):
+        """A full byte per character makes this the widest channel there is."""
+        carrier = "x" + "".join(
+            chr(0xFE00 + b) if b < 16 else chr(0xE0100 + b - 16)
+            for b in b"tracked:user-8841")
+        assert decode_payloads(carrier), "fixture must carry a payload"
+        cleaned = clean(carrier, profile).cleaned
+        assert cleaned == "x"
+        assert not decode_payloads(cleaned)
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_emoji_presentation_selector_is_preserved(self, profile):
+        """The selector is doing real work here and must not be touched."""
+        assert clean("I ❤️ you", profile).cleaned == "I ❤️ you"
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_persian_joiner_is_preserved(self, profile):
+        """mi-ravam needs its ZWNJ; removing it corrupts the word."""
+        word = "می‌روم"
+        assert clean(word, profile).cleaned == word
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_cjk_ideograph_selector_is_preserved(self, profile):
+        assert clean("誤︀", profile).cleaned == "誤︀"
+
+    @pytest.mark.parametrize("profile", sorted(PROFILES))
+    def test_semantics_hold_in_every_case(self, profile):
+        for text in ("landscape,‌Next", "end.️", "I ❤️ you",
+                     "می‌روم", "誤︀"):
+            assert clean(text, profile).semantic_preserved, text
+
+    def test_a_variation_selector_is_not_visible_content(self):
+        """It is category Mn, like an accent, but a reader cannot see it.
+
+        Counting it as content made removing one look like a loss, which is
+        why these used to be preserved unconditionally.
+        """
+        assert verify_semantics("a️", "a")[0]
+        # A real combining accent is visible content and still protected.
+        assert not verify_semantics("café", "cafe")[0]
