@@ -207,7 +207,7 @@ Three profiles:
 
 | Profile | Behaviour |
 |---|---|
-| `safe` *(default)* | Removes only what is never legitimate: tag characters, variation-selector supplements, zero-width spaces, word joiners, control characters, bidi overrides, noncharacters. Normalises exotic whitespace to a plain space. **Preserves** Arabic and Indic joiners, bidi isolates, emoji sequences, and every combining mark. |
+| `safe` *(default)* | Removes only what is never legitimate: tag characters, zero-width spaces, word joiners, control characters, bidi overrides, noncharacters, and both variation-selector ranges. Normalises exotic whitespace to a plain space. Joiners and variation selectors are judged **per occurrence** from the character in front of them, so an orphan is removed and a working one is kept. **Preserves** Arabic and Indic joiners, emoji presentation selectors, CJK ideograph variants, bidi isolates, and every accent. |
 | `standard` | Adds: joiners outside a script that uses them, deprecated bidi embeddings, NFC normalisation, whitespace tidying. |
 | `aggressive` | Adds: all bidi controls, private-use characters, straightened typography, homoglyph repair. Changes visible characters, so it reports semantics as *review* rather than *pass*. |
 
@@ -222,6 +222,8 @@ Semantics  PRESERVED
 ```
 
 Arabic diacritics are combining marks, which is exactly what makes this safe to run unattended on text in a script you cannot read.
+
+One class of combining mark is deliberately excluded from that comparison: variation selectors. They are category `Mn`, like an accent, but a reader cannot see them, and they carry a full byte each — the widest hidden channel in Unicode. Counting them as visible content made removing one look like losing a letter, which is why they used to survive every profile even when they were plainly carrying data. An accent is still protected: dropping the acute from `café` fails the check.
 
 ---
 

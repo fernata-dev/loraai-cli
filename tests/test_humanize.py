@@ -300,3 +300,38 @@ class TestRewritesStayGrammatical:
                 raise AssertionError(
                     f"{rule.rule_id} replaces with {rule.replacement!r}, which "
                     "needs its object in the middle")
+
+
+class TestUnsourcedClaimsAreFlagged:
+    """Removing borrowed authority leaves a bald assertion, and that is news.
+
+    The phrase named no source, so the claim was never supported and nothing
+    is lost by cutting it. But the reader of the rewrite should know the claim
+    now stands alone. The tool will not write the citation: it would have to
+    invent the source, which is worse than the phrase was.
+    """
+
+    def test_a_note_is_raised_when_an_attribution_is_removed(self):
+        result = humanize("Experts say that the market will recover.",
+                          intensity=3)
+        assert result.result == "The market will recover."
+        assert any("unnamed authority" in n for n in result.notes)
+        assert any("make the source up" in n for n in result.notes)
+
+    def test_the_note_counts_them(self):
+        result = humanize(
+            "Experts say that it works. Studies show that it helps.",
+            intensity=3)
+        assert any("2 appeal" in n for n in result.notes)
+
+    def test_no_note_when_nothing_was_attributed(self):
+        result = humanize("The market will recover next year.", intensity=3)
+        assert not any("unnamed authority" in n for n in result.notes)
+
+    def test_no_source_is_ever_invented(self):
+        """Nothing resembling a citation may appear that was not there."""
+        import re
+        out = humanize("Experts say that the market will recover.",
+                       intensity=3).result
+        assert not re.search(r"\(\s*\d{4}\s*\)|et al\.|according to", out,
+                             flags=re.IGNORECASE)

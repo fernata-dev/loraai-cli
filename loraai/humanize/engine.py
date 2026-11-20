@@ -333,6 +333,19 @@ def humanize(
                 f"this rewrite."
             )
 
+    # Removing an appeal to authority leaves the claim exactly as well
+    # supported as it was - which is to say not at all, since no source was
+    # ever named. Say so. Writing the citation would mean inventing one, and
+    # that is worse than the phrase was.
+    dropped = sum(1 for edit in all_edits if edit.category == "attribution")
+    if dropped:
+        result.notes.append(
+            f"Removed {dropped} appeal(s) to an unnamed authority. The "
+            f"claim(s) now stand on their own: give each a real reference or "
+            f"drop it. This tool will not supply one, because it would have "
+            f"to make the source up."
+        )
+
     result.notes.append(
         "Style markers were reduced. This improves how naturally the text "
         "reads; it is not a guarantee about any particular detector, and it "
