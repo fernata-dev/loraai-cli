@@ -42,6 +42,12 @@ class CleanProfile:
     strip_orphan_joiners: bool = False
     #: Remove ZWNJ/ZWJ even where they are doing legitimate work.
     strip_all_joiners: bool = False
+    #: Remove the deprecated bidi embeddings U+202A, U+202B and U+202C.
+    #: Separate from strip_orphan_joiners, which used to double as this flag:
+    #: one covers invisible joiners doing no work, the other changes how real
+    #: text is ordered on screen, and a profile may well want one without the
+    #: other.
+    strip_deprecated_bidi: bool = False
     #: Remove every bidi control, including isolates.
     strip_all_bidi: bool = False
     #: Replace homoglyphs with the character they imitate.
@@ -93,6 +99,7 @@ STANDARD = CleanProfile(
     remove_classes=_ALWAYS_REMOVE | {"variation-selector"},
     replace_classes=_ALWAYS_REPLACE,
     strip_orphan_joiners=True,
+    strip_deprecated_bidi=True,
     normalize_form="NFC",
     tidy_whitespace=True,
 )
@@ -107,6 +114,7 @@ AGGRESSIVE = CleanProfile(
     remove_classes=_ALWAYS_REMOVE | {"variation-selector", "private-use", "deprecated"},
     replace_classes=_ALWAYS_REPLACE,
     strip_orphan_joiners=True,
+    strip_deprecated_bidi=True,
     strip_all_bidi=True,
     fix_confusables=True,
     normalize_typography=True,

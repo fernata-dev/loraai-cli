@@ -25,6 +25,7 @@ from .. import textio
 from ..analysis import analyze as run_analysis
 from ..analysis.provenance import summary_lines
 from ..cleaning import clean as run_clean
+from ..cleaning.cleaner import profiles_acting_on
 from ..cleaning.rules import PROFILES
 from ..diffing import diff as run_diff
 from ..errors import LoraError, ProviderError
@@ -259,7 +260,8 @@ def analyze(ctx, text_input, file_input, stdin_flag, as_json, limit, fail_on, no
         if not ctx.quiet:
             ui.banner(ctx.console, compact=True)
             ctx.console.print()
-        ctx.out(*ui.render_full(result, verbose=ctx.verbose, limit=limit))
+        ctx.out(*ui.render_full(result, verbose=ctx.verbose, limit=limit,
+                                acting=profiles_acting_on(loaded.text)))
 
     if _severity_at_least(result.unicode.max_severity, fail_on):
         raise SystemExit(5)
@@ -305,7 +307,8 @@ def inspect(ctx, text_input, file_input, stdin_flag, as_json, limit, fail_on, sh
         payloads = ui.render_payloads(result.unicode)
         if payloads is not None:
             ctx.out(payloads)
-        ctx.out(ui.render_unicode(result.unicode, limit=shown))
+        ctx.out(ui.render_unicode(result.unicode, limit=shown,
+                                  acting=profiles_acting_on(loaded.text)))
         ctx.out(ui.render_provenance(result))
         if ctx.verbose:
             ctx.out(ui.render_references())

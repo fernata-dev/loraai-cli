@@ -183,7 +183,7 @@ def clean(
                     CleanChange("removed", cp, position, "", "bidi control (aggressive)")
                 )
                 continue
-            if policy.strip_orphan_joiners and cp in (0x202A, 0x202B, 0x202C):
+            if policy.strip_deprecated_bidi and cp in (0x202A, 0x202B, 0x202C):
                 removed[f"U+{cp:04X}"] += 1
                 changes.append(
                     CleanChange("removed", cp, position, "", "deprecated bidi embedding")
@@ -298,3 +298,29 @@ def preview(result: CleanResult, limit: int = 12) -> List[str]:
     if hidden > 0:
         lines.append(f"... and {hidden} more distinct code point(s)")
     return lines
+
+
+#: Profiles from least to most invasive, which is the order to report them in.
+PROFILE_ORDER = ("safe", "standard", "aggressive")
+
+
+def profiles_acting_on(text: str) -> dict:
+    """For each suspicious codepoint in *text*, the gentlest profile that acts.
+
+    Derived by running the cleaner rather than from a table of what it is
+    believed to do, so the answer cannot drift away from the behaviour. A
+    codepoint absent from the result is one no profile touches.
+
+    This exists so a report can never promise an action that cleaning will not
+    take. The recommendation attached to a character is a property of the
+    character; whether it gets carried out is a property of the profile.
+    """
+    counts = Counter(text)
+    acting: dict = {}
+    for name in PROFILE_ORDER:
+        cleaned = Counter(clean(text, name).cleaned)
+        for ch, before in counts.items():
+            key = f"U+{ord(ch):04X}"
+            if key not in acting and cleaned.get(ch, 0) < before:
+                acting[key] = name
+    return acting

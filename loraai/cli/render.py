@@ -18,6 +18,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..analysis.provenance import REFERENCES
+from ..cleaning.rules import DEFAULT_PROFILE
 from ..diffing.engine import DiffResult
 from ..models import (
     Analysis,
@@ -255,7 +256,25 @@ def render_payloads(report: UnicodeReport) -> Optional[Panel]:
     return section("HIDDEN PAYLOAD DECODED", Group(table, note), style=SYNTH)
 
 
-def render_unicode(report: UnicodeReport, *, limit: int = 20) -> Panel:
+def _action_cell(finding, acting: Dict[str, str]) -> Text:
+    """The recommended action, qualified by the profile that performs it."""
+    action = finding.recommended_action
+    if action not in ("remove", "replace"):
+        return Text(action)
+    profile = acting.get(finding.code)
+    if profile is None:
+        return Text(f"{action} \u2192 none", style=MUTED)
+    if profile == DEFAULT_PROFILE:
+        return Text(action)
+    return Text(f"{action} \u2192 {profile}", style=NEUTRAL)
+
+
+def render_unicode(
+    report: UnicodeReport,
+    *,
+    limit: int = 20,
+    acting: Optional[Dict[str, str]] = None,
+) -> Panel:
     """Unicode forensics summary and findings."""
     if not report.total:
         return section(
@@ -287,6 +306,19 @@ def render_unicode(report: UnicodeReport, *, limit: int = 20) -> Panel:
     findings.add_column("Pos", justify="right", no_wrap=True, style=MUTED)
     findings.add_column("Action", no_wrap=True)
 
+    # The recommendation belongs to the character; whether it is carried out
+    # belongs to the profile. Where the default profile declines - homoglyphs
+    # and private-use characters, because replacing them changes something the
+    # reader can see - the column says which profile does it, so the report
+    # never promises an action that cleaning will not take.
+    acting = acting or {}
+    deferred = sorted({
+        profile for code, profile in acting.items()
+        if profile != DEFAULT_PROFILE
+        and any(f.code == code and f.recommended_action in ("remove", "replace")
+                for f in report.findings)
+    })
+
     shown = sorted(
         report.findings, key=lambda f: (-f.severity.rank, f.position)
     )[:limit]
@@ -296,7 +328,7 @@ def render_unicode(report: UnicodeReport, *, limit: int = 20) -> Panel:
             one_line(finding.name, 34),
             Text(finding.severity.value, style=SEVERITY_STYLE[finding.severity]),
             f"{finding.line}:{finding.column}",
-            finding.recommended_action,
+            _action_cell(finding, acting),
         )
 
     body: List[RenderableType] = [summary, Text(""), classes, Text(""), findings]
@@ -314,6 +346,12 @@ def render_unicode(report: UnicodeReport, *, limit: int = 20) -> Panel:
         )
     for note in report.notes:
         body.append(Text(f"\n{note}", style=MUTED))
+    for profile in deferred:
+        body.append(Text(
+            f"\nActions marked \u2192 {profile} are not performed by the "
+            f"default {DEFAULT_PROFILE} profile, which leaves visible "
+            f"characters alone. Run clean --profile {profile} to apply them.",
+            style=MUTED))
 
     return section(
         "UNICODE FORENSICS", Group(*body), style=SEVERITY_STYLE[report.max_severity]
@@ -622,7 +660,11 @@ def render_references() -> Panel:
 
 
 def render_full(
-    analysis: Analysis, *, verbose: bool = False, limit: int = 20
+    analysis: Analysis,
+    *,
+    verbose: bool = False,
+    limit: int = 20,
+    acting: Optional[Dict[str, str]] = None,
 ) -> List[RenderableType]:
     """The default `analyze` view, in reading order."""
     blocks: List[RenderableType] = [render_verdict(analysis)]
@@ -631,7 +673,8 @@ def render_full(
     if payloads is not None:
         blocks.append(payloads)
 
-    blocks.append(render_unicode(analysis.unicode, limit=limit))
+    blocks.append(render_unicode(analysis.unicode, limit=limit,
+                                 acting=acting))
     blocks.append(render_markers(analysis, limit=limit))
     blocks.append(render_statistics(analysis))
     blocks.append(render_provenance(analysis))

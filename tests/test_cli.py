@@ -329,3 +329,51 @@ class TestDoctorAndConfig:
 
     def test_config_show(self, run):
         assert json.loads(run(["config", "show"]).output)["clean"]["profile"]
+
+
+class TestActionColumnTellsTheTruth:
+    """The Action column must not promise what the default profile declines.
+
+    inspect used to print "remove" for an orphan joiner that the safe profile
+    kept, and "replace" for a homoglyph no default run would touch. The column
+    now names the profile that performs the action, and the profile is worked
+    out by running the cleaner, so it cannot drift from the behaviour.
+    """
+
+    def test_homoglyph_action_names_the_profile_that_does_it(self, run):
+        result = run(["inspect", "-t", "аbc"])
+        assert result.exit_code in (0, 5)
+        assert "aggressive" in result.output
+        assert "default safe profile" in result.output
+
+    def test_action_the_default_profile_performs_is_unqualified(self, run):
+        result = run(["inspect", "-t", "a​b"])
+        assert "remove" in result.output
+        assert "remove →" not in result.output
+
+    @pytest.mark.parametrize("text", ["a​b", "end.️", "x,‌y"])
+    def test_everything_marked_remove_is_gone_after_a_default_clean(
+        self, run, text
+    ):
+        """The promise the column makes, checked against what clean does."""
+        from loraai.analysis.unicode_forensics import scan
+        from loraai.cleaning import clean
+
+        cleaned = clean(text).cleaned
+        for finding in scan(text).findings:
+            if finding.recommended_action == "remove":
+                assert chr(finding.codepoint) not in cleaned, finding.code
+
+    def test_profiles_acting_on_is_derived_from_real_behaviour(self):
+        from loraai.cleaning.cleaner import profiles_acting_on
+
+        acting = profiles_acting_on("аbc a​b end.️ a‬b")
+        assert acting["U+200B"] == "safe"
+        assert acting["U+FE0F"] == "safe"
+        assert acting["U+202C"] == "standard"
+        assert acting["U+0430"] == "aggressive"
+
+    def test_a_character_no_profile_touches_is_reported_as_such(self):
+        from loraai.cleaning.cleaner import profiles_acting_on
+
+        assert "U+0041" not in profiles_acting_on("ABC")
